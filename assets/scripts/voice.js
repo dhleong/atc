@@ -28,6 +28,12 @@ function voice_init_pre() {
     nine: 9
   };
 
+  prop.voice.airlineAlias = {
+    // is there a better way to do this?
+    "seth": "cessna",
+    "steve b[a-z]+": "speedbird"
+  };
+
   function argIdentity(regex) {
     return {
       regex: regex,
@@ -88,7 +94,7 @@ function voice_init_pre() {
     taxi: argRunway,
 
     fix: argWaypoint,
-  }
+  };
 
   prop.voice.commandAlias = {
     // some spoken commands do not mach to the typed ones
@@ -97,11 +103,12 @@ function voice_init_pre() {
 
     // some are easily mistaken
     text: 'taxi',
-  }
+  };
 
   prop.voice.commandIgnore = {
+    turn: true, // eg: turn heading 270 causes dup
     to: true
-  }
+  };
 
   if('atc-voice-enabled' in localStorage && localStorage['atc-voice-enabled'] == 'true') {
     prop.voice.enabled = true;
@@ -169,7 +176,7 @@ function voice_onresult(event) {
 
   var command = voice_process(
     bestResultObj.isFinal,
-    bestResult.transcript
+    bestResult.transcript.toLowerCase()
   );
   if (command && bestResultObj.isFinal) {
     ui_log('>> ' + command);
@@ -199,6 +206,8 @@ function voice_process(isFinal, raw) {
   } catch (e) {
     log(e, LOG_WARNING);
   }
+
+  if (!result && isFinal) log("???" + raw, LOG_DEBUG);
   return result;
 }
 
@@ -220,6 +229,7 @@ function voice_process_unsafe(isFinal, raw) {
   var callsign = voice_process_callsign(isFinal, raw);
   if (!callsign) return;
 
+
   var commandString = voice_process_command(isFinal, raw);
   if (!commandString) {
     input_select(callsign);
@@ -233,6 +243,16 @@ function voice_process_unsafe(isFinal, raw) {
 }
 
 function voice_process_callsign(isFinal, raw) {
+
+  var input = raw;
+
+  // replace aliases
+  $.each(prop.voice.airlineAlias, function(input, output) {
+    raw = raw.replace(new RegExp("^" + input, 'g'), output);
+  });
+  var output = raw;
+  console.log(input, "->", output);
+
   var airplaneMatch = raw.match(/(.*?)[ ]([0-9]+)/);
   if (!airplaneMatch) {
     // possibly an interim match, possibly
@@ -240,7 +260,7 @@ function voice_process_callsign(isFinal, raw) {
     return;
   }
 
-  var airline = airplaneMatch[1].toLowerCase();
+  var airline = airplaneMatch[1];
   var icao = prop.voice.callsigns[airline];
   var extra = '';
   if (!icao) {
