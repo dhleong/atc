@@ -11,6 +11,10 @@ function speech_init() {
 }
 
 function speech_say(textToSay) {
+
+  // TODO In a perfect world, these things would queue up
+  //  if voice recognition is active and wait their turn
+
   if(prop.speech.synthesis != null && prop.speech.enabled) {
     // Split numbers into individual digits e.g. Speedbird 666 -> Speedbird 6 6 6
     textToSay = textToSay.replace(/[0-9]/g, "$& ").replace(/\s0/g, " zero");

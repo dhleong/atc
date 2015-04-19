@@ -197,7 +197,10 @@ function voice_onresult(event) {
 
   if (prop.speech.synthesis 
       && prop.speech.synthesis.speaking) {
-    voice_restart();
+    // "duck" recognition and restart it after 
+    //  a delay (so we don't catch the tail)
+    voice_stop();
+    voice_unduck();
     return;
   }
 
@@ -242,6 +245,17 @@ function voice_onend() {
 function voice_restart() {
   // (the onend listener will handle startup)
   prop.voice.recognition.stop();
+}
+
+function voice_unduck() {
+  if (prop.speech.synthesis.speaking) {
+    // still speaking; try again
+    clearTimeout(prop.voice.restart);
+    prop.voice.restart = setTimeout(voice_unduck, 1500);
+  } else {
+    // unduck!
+    voice_start()
+  }
 }
 
 function voice_process(isFinal, raw) {

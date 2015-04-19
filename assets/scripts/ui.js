@@ -98,7 +98,8 @@ function ui_log(message) {
   if(arguments[0] == true) {
     warn = true;
     message = arguments[1];
-  } else if(arguments.length >= 2) {
+  } else if(arguments.length >= 2
+      && arguments[1] !== false) {
     message += ", "+arguments[1];
   }
   var speak = arguments[arguments.length-1] !== false;
