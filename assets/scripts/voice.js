@@ -1,4 +1,4 @@
-/* global prop, ui_log:true */
+/* global prop, game_paused, ui_log */
 /* global input_select, input_change, input_keydown */
 /* global log, LOG_DEBUG, LOG_WARNING */
 
@@ -123,7 +123,9 @@ function voice_init() {
   });
 
   $(window).focus(function() {
-    voice_start();
+    if (!game_paused()) {
+      voice_start();
+    }
   });
 
   if('atc-voice-enabled' in localStorage && localStorage['atc-voice-enabled'] == 'true') {
