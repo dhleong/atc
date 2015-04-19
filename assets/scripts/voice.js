@@ -309,6 +309,7 @@ function voice_process_unsafe(isFinal, raw) {
   }
 
   var fullCommand = callsign + commandString;
+
   log("<<<" + raw, LOG_DEBUG);
   log(">>>" + fullCommand, LOG_DEBUG);
   return fullCommand;
@@ -415,7 +416,9 @@ function voice_process_args(raw, command) {
     return;
   }
 
-  return command + ' ' + parsed;
+  var expedite = match[match.length - 1];
+  return command + ' ' + parsed
+      + (expedite ? ' expedite' : '');
 }
 
 function voice_parse_number(number) {
