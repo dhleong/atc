@@ -1,14 +1,16 @@
 /* global prop, ui_log:true */
-/* global input_change: true, input_keydown: true */
+/* global input_select, input_change, input_keydown */
+/* global log, LOG_DEBUG, LOG_WARNING */
 
 /* jshint indent: 2 */
 /* jshint unused: false */
 
-function voice_init() {
+function voice_init_pre() {
   prop.voice = {};
   prop.voice.recognitionClass = window.webkitSpeechRecognition;
   prop.voice.enabled = true; // FIXME
   prop.voice.running = false;
+  prop.voice.lastExecuted = null;
 
   // to be init'd later
   prop.voice.callsigns = {};
@@ -33,7 +35,9 @@ function voice_init() {
     }
   }
 
-  var argHeading = argIdentity('((left|right)? [0-9]+)');
+  // FIXME: "turn LEFT heading 360"
+  // FIXME: "turn heading 270" recognized as "turn heading to 70"
+  var argHeading = argIdentity('(((left|right) )?[0-9]+)');
   var argNumber = argIdentity('([0-9]+)');
   var argDir = argIdentity('(left|right)');
   var argAltitude = {
@@ -50,14 +54,13 @@ function voice_init() {
   var argRunway = {
     regex: 'runway ([0-9]+|([a-z]+-?)+)( (left|right))?',
     parse: function(m) {
-      console.log(m);
       var number = voice_parse_number(m[1]); 
       var leftright = m[4];
       if (!leftright) {
         return number;
       }
 
-      return number + leftright[1].toUpperCase();
+      return number + leftright[0].toUpperCase();
     }
   };
   var argWaypoint = {
@@ -90,7 +93,10 @@ function voice_init() {
   prop.voice.commandAlias = {
     // some spoken commands do not mach to the typed ones
     navigate: 'fix',
-    'take off': 'takeoff'
+    'take off': 'takeoff',
+
+    // some are easily mistaken
+    text: 'taxi',
   }
 
   prop.voice.commandIgnore = {
@@ -103,6 +109,16 @@ function voice_init() {
   }
 }
 
+function voice_init() {
+  $(window).blur(function() {
+    voice_stop();
+  });
+
+  $(window).focus(function() {
+    voice_start();
+  });
+}
+
 function voice_ready() {
   // index airlines by callsign
   for (var icao in prop.airline.airlines) {
@@ -110,19 +126,20 @@ function voice_ready() {
     var callsign = airline.callsign.name;
     prop.voice.callsigns[callsign.toLowerCase()] = icao;
   }
+  prop.voice.init = true;
 
-  if (prop.voice.enabled) {
-    voice_start();
-  }
+  voice_start();
 }
 
 function voice_start() {
-  if (!prop.voice.recognitionClass) {
+  if (!(prop.voice.enabled 
+      && prop.voice.recognitionClass
+      && prop.voice.init)) {
     return;
   } else if (!prop.voice.recognition) {
     prop.voice.recognition = new prop.voice.recognitionClass();
     prop.voice.recognition.continuous = true;
-    // prop.voice.recognition.interimResults = true;
+    prop.voice.recognition.interimResults = true;
     prop.voice.recognition.lang = "en";
     prop.voice.recognition.onresult = voice_onresult;
     prop.voice.recognition.onend = voice_onend;
@@ -142,17 +159,30 @@ function voice_stop() {
 }
 
 function voice_onresult(event) {
-  var bestResult;
+  var bestResultObj, bestResult;
   try {
-    bestResult = event.results[0][0];
+    bestResultObj = event.results[0];
+    bestResult = bestResultObj[0];
   } catch (e) {
-  } finally {
+    // no result, I suppose
+  }
+
+  var command = voice_process(
+    bestResultObj.isFinal,
+    bestResult.transcript
+  );
+  if (command && bestResultObj.isFinal) {
+    ui_log('>> ' + command);
+    voice_execute(command);
+  } else if (command) {
+    $("#command").val(command);
+  }
+
+  if (bestResultObj.isFinal) {
     // restart listening
     // (the onend listener will handle startup)
     prop.voice.recognition.stop();
   }
-
-  voice_process(bestResult.transcript);
 }
 
 function voice_onend() {
@@ -162,37 +192,51 @@ function voice_onend() {
   }
 }
 
-function voice_process(raw) {
+function voice_process(isFinal, raw) {
+  var result = false;
   try {
-    voice_process_unsafe(raw);
+    result = voice_process_unsafe(isFinal, raw);
   } catch (e) {
-    console.warn(e);
+    log(e, LOG_WARNING);
   }
+  return result;
 }
 
-function voice_process_unsafe(raw) {
-  var callsign = voice_process_callsign(raw);
-  if (!callsign) return;
+function voice_execute(fullCommand) {
 
-  var commandString = voice_process_command(raw);
-
-  console.log(">>>", raw);
-  console.log("> plane:", callsign);
-  console.log("> cmand:", commandString);
+  if (prop.voice.lastExecuted == fullCommand) {
+    // suppress the dup
+    return;
+  }
+  prop.voice.lastExecuted = fullCommand;
 
   // semi-janky way of reusing existing command parsing
-  var fullCommand = callsign.toUpperCase() + commandString;
   $("#command").val(fullCommand);
   input_change();
   input_keydown({which: 13}); // enter key
-  
-  console.log(">>>> ", fullCommand);
 }
 
-function voice_process_callsign(raw) {
+function voice_process_unsafe(isFinal, raw) {
+  var callsign = voice_process_callsign(isFinal, raw);
+  if (!callsign) return;
+
+  var commandString = voice_process_command(isFinal, raw);
+  if (!commandString) {
+    input_select(callsign);
+    return;
+  }
+
+  var fullCommand = callsign + commandString;
+  log("<<<" + raw, LOG_DEBUG);
+  log(">>>" + fullCommand, LOG_DEBUG);
+  return fullCommand;
+}
+
+function voice_process_callsign(isFinal, raw) {
   var airplaneMatch = raw.match(/(.*?)[ ]([0-9]+)/);
   if (!airplaneMatch) {
-    console.warn("No match:", raw);
+    // possibly an interim match, possibly
+    //  actual just nothing
     return;
   }
 
@@ -200,22 +244,33 @@ function voice_process_callsign(raw) {
   var icao = prop.voice.callsigns[airline];
   var extra = '';
   if (!icao) {
-    ui_log(true, "Unknown callsign " + airline);
+    if (isFinal) {
+      // don't notify for interim results
+      ui_log(true, "Unknown callsign " + airline);
+    }
     return;
   } else if (icao == 'cessna') {
     icao = 'N';
 
     // cessna callsigns include two letters after
-    var parts = raw.split(/ /);
+    var parts = raw.replace(/x ray/i, "x-ray")
+                   .split(/ /);
     var letter1 = parts[2];
     var letter2 = parts[3];
+    if (!(letter1 && letter2)) {
+      // probably an interim result; don't sweat it
+      return;
+    }
+
+    // ex: cessna 510 uniform alpha
     extra = letter1[0] + letter2[0];
   }
 
-  return icao + airplaneMatch[2] + extra;
+  var full = icao + airplaneMatch[2] + extra;
+  return full.toUpperCase();
 }
 
-function voice_process_command(raw) {
+function voice_process_command(isFinal, raw) {
 
   for (var alias in prop.voice.commandAlias) {
     raw = raw.replace(alias, prop.voice.commandAlias[alias]);
@@ -258,13 +313,13 @@ function voice_process_args(raw, command) {
     + ' .*?' + handler.regex + '( ex[a-z]+)?');
   var match = raw.match(regex);
   if (!match) {
-    console.warn(command, "did not match: " + regex);
+    log(command + " did not match: " + regex);
     return;
   }
 
   var parsed = handler.parse(match);
   if (!parsed) {
-    console.log(command, regex, match);
+    log({cmd: command, rgx: regex, mch: match}, LOG_DEBUG);
     return;
   }
 
