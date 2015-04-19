@@ -90,6 +90,7 @@ function game_pause() {
   $(".pause-toggle").addClass("active");
   $(".pause-toggle").attr("title", "Resume simulation");
   $("html").addClass("paused");
+  voice_stop();
 }
 
 function game_unpause() {
@@ -97,6 +98,7 @@ function game_unpause() {
   $(".pause-toggle").removeClass("active");
   $(".pause-toggle").attr("title", "Pause simulation");
   $("html").removeClass("paused");
+  voice_start();
 }
 
 function game_pause_toggle() {

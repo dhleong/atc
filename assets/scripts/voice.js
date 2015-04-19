@@ -158,6 +158,10 @@ function voice_toggle() {
   localStorage['atc-voice-enabled'] = prop.voice.enabled;
 }
 
+/**
+ * Begin recognizing voice input *if* enabled,
+ *  and *if* not already doing so
+ */
 function voice_start() {
   if (!(prop.voice.enabled 
       && prop.voice.recognitionClass
