@@ -101,6 +101,7 @@ function ui_log(message) {
   } else if(arguments.length >= 2) {
     message += ", "+arguments[1];
   }
+  var speak = arguments[arguments.length-1] !== false;
 
 //  $("#log").append("<span class='item'><span class='from'>"+from+"</span><span class='message'>"+message+"</span></span>");
   var html = $("<span class='item'><span class='message'>"+message+"</span></span>");
@@ -114,7 +115,9 @@ function ui_log(message) {
     }, 10000);
   }, 3, window, html);
 
-  speech_say(message);
+  if (speak) {
+    speech_say(message);
+  }
 
 //  console.log("MESSAGE: " + message);
 }

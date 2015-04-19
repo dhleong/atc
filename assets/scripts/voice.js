@@ -164,6 +164,7 @@ function voice_start() {
       && prop.voice.init)) {
     return;
   } else if (prop.voice.running) {
+    // prevent "already started" error
     return;
   } else if (!prop.voice.recognition) {
     prop.voice.recognition = new prop.voice.recognitionClass();
@@ -190,6 +191,12 @@ function voice_stop() {
 
 function voice_onresult(event) {
 
+  if (prop.speech.synthesis 
+      && prop.speech.synthesis.speaking) {
+    voice_restart();
+    return;
+  }
+
   // add some UI
   $('.voice-toggle').addClass('voice');
 
@@ -206,7 +213,7 @@ function voice_onresult(event) {
     bestResult.transcript.toLowerCase()
   );
   if (command && bestResultObj.isFinal) {
-    ui_log('>> ' + command);
+    ui_log('>> ' + command, /* speak= */false);
     voice_execute(command);
   } else if (command) {
     $("#command").val(command);
@@ -214,17 +221,23 @@ function voice_onresult(event) {
 
   if (bestResultObj.isFinal) {
     // restart listening
-    // (the onend listener will handle startup)
-    prop.voice.recognition.stop();
+    voice_restart();
   }
 }
 
 function voice_onend() {
   $('.voice-toggle').removeClass('voice');
   if (prop.voice.running) {
-    // we requested a restart
+    // we just requested a restart;
+    //  clear running flag so we can start
+    prop.voice.running = false;
     voice_start();
   }
+}
+
+function voice_restart() {
+  // (the onend listener will handle startup)
+  prop.voice.recognition.stop();
 }
 
 function voice_process(isFinal, raw) {
@@ -294,7 +307,7 @@ function voice_process_callsign(isFinal, raw) {
   if (!icao) {
     if (isFinal) {
       // don't notify for interim results
-      ui_log(true, "Unknown callsign " + airline);
+      ui_log(/* warn= */true, "Unknown callsign " + airline);
     }
     return;
   } else if (icao == 'cessna') {
@@ -412,7 +425,7 @@ function voice_parse_waypoint(raw) {
 
   if (!fixes.length) {
     // no possible matching fix
-    ui_log(true, "No fix like", raw);
+    ui_log(true, "No fix like: " + raw, false);
     return;
   } else if (fixes.length == 1) {
     // unambiguous
