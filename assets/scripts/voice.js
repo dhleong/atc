@@ -1,4 +1,4 @@
-/* global prop, game_paused, ui_log */
+/* global prop, game_paused, ui_log, speech_run_queue */
 /* global input_select, input_change, input_keydown */
 /* global log, LOG_DEBUG, LOG_WARNING */
 
@@ -90,10 +90,14 @@ function voice_init_pre() {
     hold: argDir,
     circle: argDir,
 
+    fix: argWaypoint,
+
     speed: argNumber,
+
+    wait: argRunway,
     taxi: argRunway,
 
-    fix: argWaypoint,
+    land: argRunway,
   };
 
   prop.voice.commandAlias = {
@@ -104,10 +108,14 @@ function voice_init_pre() {
     // some are easily mistaken
     climbs: 'climb',
 
+    send: 'descend',
+
     // chrome really dislikes 'taxi'
     text: 'taxi',
     sexy: 'taxi',
     '8 xe': ' taxi', // what the heck, man?
+
+    band: 'land',
   };
 
   prop.voice.commandIgnore = {
@@ -215,7 +223,9 @@ function voice_onresult(event) {
     bestResult = bestResultObj[0];
   } catch (e) {
     // no result, I suppose
+    return;
   }
+  prop.voice.recognizing = !bestResultObj.isFinal;
 
   var command = voice_process(
     bestResultObj.isFinal,
@@ -231,6 +241,7 @@ function voice_onresult(event) {
   if (bestResultObj.isFinal) {
     // restart listening
     voice_restart();
+    speech_run_queue();
   }
 }
 
@@ -312,7 +323,6 @@ function voice_process_callsign(isFinal, raw) {
     raw = raw.replace(new RegExp("^" + input, 'g'), output);
   });
   var output = raw;
-  console.log(input, "->", output);
 
   var airplaneMatch = raw.match(/(.*?)[ ]([0-9]+)/);
   if (!airplaneMatch) {
