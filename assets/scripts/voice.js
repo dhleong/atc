@@ -107,6 +107,7 @@ function voice_init_pre() {
 
     // some are easily mistaken
     climbs: 'climb',
+    kline: 'climb',
 
     send: 'descend',
 
@@ -325,7 +326,7 @@ function voice_process_callsign(isFinal, raw) {
   });
   var output = raw;
 
-  var airplaneMatch = raw.match(/(.*?)[ ]([0-9]+)/);
+  var airplaneMatch = raw.match(/(.*?)[ ]([0-9]{1,3})/);
   if (!airplaneMatch) {
     // possibly an interim match, possibly
     //  actual just nothing
