@@ -62,7 +62,9 @@ function voice_init() {
   };
   var argWaypoint = {
     regex: 'to ([a-zA-Z]+)',
-    parse: function(m) { /* TODO */ return m[0]; }
+    parse: function(m) { 
+      return voice_parse_waypoint(m[1]);
+    }
   };
 
   prop.voice.commandArgs = {
@@ -261,7 +263,11 @@ function voice_process_args(raw, command) {
   }
 
   var parsed = handler.parse(match);
-  console.log(command, regex, parsed);
+  if (!parsed) {
+    console.log(command, regex, match);
+    return;
+  }
+
   return command + ' ' + parsed;
 }
 
@@ -282,4 +288,74 @@ function voice_parse_number(number) {
     result += asNum;
   }
   return result;
+}
+
+function voice_parse_waypoint(raw) {
+
+  var capitalized = raw.toUpperCase();
+  var fixesMap = prop.airport.current.fixes;
+  if (fixesMap[capitalized]) {
+    // quick accept
+    return capitalized;
+  }
+
+  // okay, no exact match; usually speech recognition
+  //  gets the first character right, so let's filter
+  //  out those definitely wrong
+  var fixes = Object.keys(fixesMap).filter(function(fix) {
+    return fix[0] == capitalized[0];
+  });
+
+  if (!fixes.length) {
+    // no possible matching fix
+    ui_log(true, "No fix like", raw);
+    return;
+  } else if (fixes.length == 1) {
+    // unambiguous
+    return fixes[0];
+  }
+
+  // okay, ambiguous; let's try word similarity
+  var sorted = fixes.sort(function(first, second) {
+    // second - first so greater similarity is *first*
+    return voice_similarity(capitalized, second) - voice_similarity(capitalized, first);
+  });
+
+  return sorted[0];
+}
+
+
+/**
+ * This is some bogus similarity metric I just made up,
+ *  but it seems to work pretty okay.
+ * @return a score in the range [0, 1]
+ */
+function voice_similarity(heard, guess) {
+  heard = heard.toLowerCase().replace(/y/g, 'i');
+  guess = guess.toLowerCase().replace(/y/g, 'i');
+
+  var vowelsRegex = /[aeiou]/g;
+  var hVowels = heard.match(vowelsRegex);
+  var gVowels = guess.match(vowelsRegex);
+
+  var matchingVowels = 0;
+  for (var i=0; i < hVowels.length; i++) {
+    if (hVowels[i] === gVowels[i])
+      matchingVowels++;
+  }
+
+  var consRegex = /[^aeiou]/g;
+  var hCons = heard.match(consRegex);
+  var gCons = guess.match(consRegex);
+
+  var matchingCons = 0;
+  for (i=0; i < hCons.length; i++) {
+    if (hCons[i] === gCons[i])
+      matchingCons++;
+  }
+
+  var vowelScore = matchingVowels / hVowels.length;
+  var consScore = matchingCons / hCons.length;
+
+  return (vowelScore + consScore) / 2; // should we weight vowels higher?
 }
