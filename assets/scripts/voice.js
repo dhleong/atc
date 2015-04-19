@@ -8,7 +8,7 @@
 function voice_init_pre() {
   prop.voice = {};
   prop.voice.recognitionClass = window.webkitSpeechRecognition;
-  prop.voice.enabled = true; // FIXME
+  prop.voice.enabled = false;
   prop.voice.running = false;
   prop.voice.lastExecuted = null;
 
@@ -102,7 +102,12 @@ function voice_init_pre() {
     'take off': 'takeoff',
 
     // some are easily mistaken
+    climbs: 'climb',
+
+    // chrome really dislikes 'taxi'
     text: 'taxi',
+    sexy: 'taxi',
+    '8 xe': ' taxi', // what the heck, man?
   };
 
   prop.voice.commandIgnore = {
@@ -110,10 +115,6 @@ function voice_init_pre() {
     to: true
   };
 
-  if('atc-voice-enabled' in localStorage && localStorage['atc-voice-enabled'] == 'true') {
-    prop.voice.enabled = true;
-    // $(".voice-toggle").addClass("active"); // FIXME
-  }
 }
 
 function voice_init() {
@@ -124,6 +125,11 @@ function voice_init() {
   $(window).focus(function() {
     voice_start();
   });
+
+  if('atc-voice-enabled' in localStorage && localStorage['atc-voice-enabled'] == 'true') {
+    prop.voice.enabled = true;
+    $(".voice-toggle").addClass("active");
+  }
 }
 
 function voice_ready() {
@@ -138,10 +144,26 @@ function voice_ready() {
   voice_start();
 }
 
+function voice_toggle() {
+  prop.voice.enabled = !prop.voice.enabled;
+
+  if (prop.voice.enabled) {
+    $(".voice-toggle").addClass("active");
+    voice_start();
+  } else {
+    $(".voice-toggle").removeClass("active");
+    voice_stop();
+  }
+
+  localStorage['atc-voice-enabled'] = prop.voice.enabled;
+}
+
 function voice_start() {
   if (!(prop.voice.enabled 
       && prop.voice.recognitionClass
       && prop.voice.init)) {
+    return;
+  } else if (prop.voice.running) {
     return;
   } else if (!prop.voice.recognition) {
     prop.voice.recognition = new prop.voice.recognitionClass();
@@ -157,6 +179,7 @@ function voice_start() {
 }
 
 function voice_stop() {
+  $('.voice-toggle').removeClass('voice');
   if (!prop.voice.running) {
     return;
   }
@@ -166,6 +189,10 @@ function voice_stop() {
 }
 
 function voice_onresult(event) {
+
+  // add some UI
+  $('.voice-toggle').addClass('voice');
+
   var bestResultObj, bestResult;
   try {
     bestResultObj = event.results[0];
@@ -193,6 +220,7 @@ function voice_onresult(event) {
 }
 
 function voice_onend() {
+  $('.voice-toggle').removeClass('voice');
   if (prop.voice.running) {
     // we requested a restart
     voice_start();
@@ -274,6 +302,7 @@ function voice_process_callsign(isFinal, raw) {
 
     // cessna callsigns include two letters after
     var parts = raw.replace(/x ray/i, "x-ray")
+                   .replace(/fox trot/i, "foxtrot")
                    .split(/ /);
     var letter1 = parts[2];
     var letter2 = parts[3];

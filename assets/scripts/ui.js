@@ -35,6 +35,10 @@ function ui_init() {
     game_timewarp_toggle();
   });
 
+  $(".voice-toggle").click(function() {
+    voice_toggle();
+  });
+
   $(".speech-toggle").click(function() {
     speech_toggle();
   });
