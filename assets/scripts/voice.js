@@ -1,6 +1,7 @@
 /* global prop, game_paused, ui_log, speech_run_queue */
 /* global input_select, input_change, input_keydown */
 /* global log, LOG_DEBUG, LOG_WARNING */
+/* global Fiber */
 
 /* jshint indent: 2 */
 /* jshint unused: false */
@@ -228,15 +229,18 @@ function voice_onresult(event) {
   }
   prop.voice.recognizing = !bestResultObj.isFinal;
 
-  var command = voice_process(
+  var result = voice_process(
     bestResultObj.isFinal,
     bestResult.transcript.toLowerCase()
   );
-  if (command && bestResultObj.isFinal) {
+  if (result.isValid() && bestResultObj.isFinal) {
+    var command = result.toCommand();
     ui_log('>> ' + command, /* speak= */false);
     voice_execute(command);
-  } else if (command) {
-    $("#command").val(command);
+  } else if (result.isValid()) {
+    $("#command").val(result.toCommand());
+  } else if (result.callsign) {
+    input_select(result.callsign);
   }
 
   if (bestResultObj.isFinal) {
@@ -280,7 +284,7 @@ function voice_process(isFinal, raw) {
     log(e, LOG_WARNING);
   }
 
-  if (!result && isFinal) log("???" + raw, LOG_DEBUG);
+  if (!result.isValid() && isFinal) log("???" + raw, LOG_DEBUG);
   return result;
 }
 
@@ -299,21 +303,7 @@ function voice_execute(fullCommand) {
 }
 
 function voice_process_unsafe(isFinal, raw) {
-  var callsign = voice_process_callsign(isFinal, raw);
-  if (!callsign) return;
-
-
-  var commandString = voice_process_command(isFinal, raw);
-  if (!commandString) {
-    input_select(callsign);
-    return;
-  }
-
-  var fullCommand = callsign + commandString;
-
-  log("<<<" + raw, LOG_DEBUG);
-  log(">>>" + fullCommand, LOG_DEBUG);
-  return fullCommand;
+  return new VoiceCommand(isFinal, raw);
 }
 
 function voice_process_callsign(isFinal, raw) {
@@ -364,7 +354,7 @@ function voice_process_callsign(isFinal, raw) {
   return full.toUpperCase();
 }
 
-function voice_process_command(isFinal, raw) {
+function voice_process_commands(isFinal, raw) {
 
   for (var alias in prop.voice.commandAlias) {
     raw = raw.replace(alias, prop.voice.commandAlias[alias]);
@@ -378,15 +368,18 @@ function voice_process_command(isFinal, raw) {
     var command = possibleCommands[i];
     var index = raw.indexOf(' ' + command);
     if (~index) {
-      found[index] = voice_process_args(raw, command)
+      found[index] = {
+        command: command,
+        args: voice_process_args(raw, command)
+      }
     }
   }
 
-  // sorted!
-  var result = '';
+  // sorted and simplified!
+  var result = [];
   for (i in found) {
     if (found[i]) {
-      result += ' ' + found[i];
+      result.push(found[i]);
     }
   }
   return result;
@@ -418,8 +411,7 @@ function voice_process_args(raw, command) {
   }
 
   var expedite = match[match.length - 1];
-  return command + ' ' + parsed
-      + (expedite ? ' expedite' : '');
+  return parsed + (expedite ? ' expedite' : '');
 }
 
 function voice_parse_number(number) {
@@ -509,4 +501,37 @@ function voice_similarity(heard, guess) {
   var consScore = matchingCons / hCons.length;
 
   return (vowelScore + consScore) / 2; // should we weight vowels higher?
+}
+
+var VoiceCommand = Fiber.extend(function() {
+  return {
+    init: function(isFinal, raw) {
+      this.isFinal = isFinal;
+      this.raw = raw;
+
+      this.callsign = voice_process_callsign(isFinal, raw);
+      this.commands = voice_process_commands(isFinal, raw);
+    },
+
+    isValid: function() {
+      return this.callsign && this.commands.length;
+    },
+
+    toCommand: function() {
+      var full = this.callsign;
+      for (var i in this.commands) {
+        full += ' ' + this.commands[i].command;
+        full += ' ' + this.commands[i].args;
+      }
+      return full;
+    }
+  }
+});
+
+if (module) {
+  module.exports = {
+    init_pre: voice_init_pre
+  , ready: voice_ready
+  , process: voice_process_unsafe
+  }
 }
