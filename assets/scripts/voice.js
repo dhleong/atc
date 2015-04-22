@@ -509,6 +509,7 @@ var VoiceCommand = Fiber.extend(function() {
       this.isFinal = isFinal;
       this.raw = raw;
 
+      this.parts = this._splitParts(raw);
       this.callsign = voice_process_callsign(isFinal, raw);
       this.commands = voice_process_commands(isFinal, raw);
     },
@@ -524,6 +525,51 @@ var VoiceCommand = Fiber.extend(function() {
         full += ' ' + this.commands[i].args;
       }
       return full;
+    },
+
+    _getPossibleCommands: function() {
+      return prop.aircraft.list[0].COMMANDS;
+    },
+
+    _splitParts: function(raw) {
+      
+      // TODO can we be more heuristic about command aliases?
+      //  Perhaps use regex to match core sounds? 
+      //  (eg: taxi -> /t.{0,2}x.{0.2}/)
+      for (var alias in prop.voice.commandAlias) {
+        raw = raw.replace(alias, prop.voice.commandAlias[alias]);
+      }
+
+      // find where commands begin
+      var indices = [];
+      var possibleCommands = this._getPossibleCommands();
+      for (var i in possibleCommands) {
+        var command = possibleCommands[i];
+        var index = raw.indexOf(' ' + command);
+        if (~index) {
+          indices.push(index);
+        }
+      }
+
+      // sort the indices
+      indices.sort();
+      indices.push(raw.length);
+
+      // split the raw command into more easily parsed parts
+      //  In particular, we know the first part SHOULD be
+      //  a valid callsign. If parts.length == 1 and we aren't
+      //  confident about a callsign, either this is early on
+      //  or the user is not talking to us
+      var parts = [];
+      var last = 0;
+      for (i in indices) {
+        var idx = indices[i];
+
+        parts.push(raw.substring(last, idx).trim());
+        last = idx;
+      }
+
+      return parts;
     }
   }
 });

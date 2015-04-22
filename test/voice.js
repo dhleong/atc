@@ -1,9 +1,10 @@
-#!/usr/bin/env mocha
+#!/usr/bin/env mocha 
 /* jshint indent: false */
 
 // prepare global namespace {{{
 global.LOG_DEBUG = 0;
 global.log = function() {};
+global.ui_log = global.log;
 
 global.Fiber = require('../assets/scripts/fiber.min');
 global.$ = {
@@ -43,6 +44,26 @@ global.prop = {
 });
 // }}} 
 
+// clean up mocha stack traces {{{
+var path = require('path');
+var appRoot = path.resolve(__dirname, '..')+'/';
+console.oldError = global.oldError || console.error;
+console.error = function () {
+  if (typeof arguments.stack !== 'undefined') {
+    console.oldError.call(console, arguments.stack);
+  } else {
+    if (typeof arguments[4] !== 'undefined') {
+      var traceToShow = arguments[4].split('\n').slice(0, 4).filter(function(line) {
+        return !~line.indexOf('mocha');
+      });
+      arguments[4] = traceToShow.join('\n').replace(new RegExp(appRoot, 'g'), ''); // jshint ignore:line
+    }
+    console.oldError.apply(console, arguments);
+  }
+}
+global.oldError = console.oldError;
+// }}}
+
 /*
  * normal
  */
@@ -55,6 +76,29 @@ beforeEach(function() {
   voice.init_pre();
   voice.ready();
 });
+
+describe("parts", function() { // {{{
+  /*
+   * We can do more heuristic approaches to esp
+   *  callsign deduction if we can split the raw
+   *  input into its relevant parts
+   */
+  handlesRaw("speedbird 321 taxi runway 17 climb 8000", function(result) {
+    result.parts.should.eql([
+        "speedbird 321",
+        "taxi runway 17",
+        "climb 8000"
+    ]);
+  });
+
+  handlesRaw("steve bird niner 21 text run way one seven, kline and maintain 8000", function(result) {
+    result.parts.should.eql([
+        "steve bird niner 21",
+        "taxi run way one seven,",
+        "climb and maintain 8000"
+    ]);
+  });
+}); // }}}
 
 describe("callsign", function() {
   handlesRaw("speedbird 321", function(result) {
@@ -107,9 +151,13 @@ describe("toCommand()", function() { // {{{
 
 // Util {{{
 function handlesRaw(raw, fun) {
-  it("handles `" + raw + "`", function() {
-    fun(voice.process(true, raw));
-  });
+  var wrapped;
+  if (fun) {
+    wrapped = function() {
+      fun(voice.process(true, raw));
+    };
+  }
+  it("handles `" + raw + "`", wrapped);
 }
 
 function handles(command, fun) {
