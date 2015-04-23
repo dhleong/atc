@@ -272,6 +272,13 @@ describe("toCommand()", function() { // {{{
       "BAW321"
     );
   });
+
+  handles("cleared for takeoff", function(result) {
+    // no dups
+    result.toCommand().should.equal(
+      "BAW321 takeoff"
+    );
+  });
 }); // }}}
 
 // Util {{{

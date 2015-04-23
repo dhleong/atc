@@ -340,7 +340,7 @@ function voice_process_args(raw, command) {
 
   var handler = prop.voice.commandArgs[command];
   if (!handler) {
-    return command;
+    return '';
   }
 
   var regex = new RegExp(command 
@@ -533,9 +533,12 @@ var VoiceCommand = Fiber.extend(function() {
     toCommand: function() {
       var full = this.callsign;
       for (var i in this.commands) {
-        if (this.commands[i].args) {
+        var arg = this.commands[i].args;
+        if (arg || arg === '') {
           full += ' ' + this.commands[i].command;
-          full += ' ' + this.commands[i].args;
+          if (arg !== '') {
+            full += ' ' + this.commands[i].args;
+          }
         }
       }
       return full;
