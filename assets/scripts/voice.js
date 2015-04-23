@@ -396,15 +396,20 @@ function voice_parse_airline(raw) {
 
   // compare with active callsigns (unique-ified)
   var activeAirlines = prop.aircraft.list.map(function(craft) {
-    return craft.airline;
+    return {
+      icao: craft.airline,
+      name: prop.airline.airlines[craft.airline].callsign.name
+    }
   });
 
   var sorted = activeAirlines.sort(function(first, second) {
     // second - first so greater similarity is *first*
+    first = first.name;
+    second = second.name;
     return voice_similarity(airline, second) - voice_similarity(airline, first);
   });
 
-  return sorted[0];
+  return sorted[0].icao;
 }
 
 function voice_parse_waypoint(raw) {
