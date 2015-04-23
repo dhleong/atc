@@ -432,14 +432,18 @@ function voice_parse_waypoint(raw) {
   }
 
   // okay, ambiguous; let's try word similarity
-  var sorted = fixes.sort(function(first, second) {
-    // second - first so greater similarity is *first*
-    return voice_similarity(capitalized, second) - voice_similarity(capitalized, first);
-  });
-
+  var sorted = voice_sort_similarity_to(fixes, capitalized);
   return sorted[0];
 }
 
+/** Sort by similarity to `actual`; most similar is first */
+function voice_sort_similarity_to(list, actual, accessor) {
+  if (!accessor) accessor = function(val) { return val };
+  return list.sort(function(first, second) {
+    return voice_similarity(actual, accessor(second)) 
+        - voice_similarity(actual, accessor(first));
+  });
+}
 
 /**
  * This is some bogus similarity metric I just made up,
@@ -449,15 +453,19 @@ function voice_parse_waypoint(raw) {
 function voice_similarity(heard, guess) {
   heard = heard.toLowerCase().replace(/y/g, 'i');
   guess = guess.toLowerCase().replace(/y/g, 'i');
+  var scores = [];
 
   var vowelsRegex = /[aeiou]/g;
   var hVowels = heard.match(vowelsRegex);
   var gVowels = guess.match(vowelsRegex);
 
   var matchingVowels = 0;
-  for (var i=0; i < hVowels.length; i++) {
-    if (hVowels[i] === gVowels[i])
-      matchingVowels++;
+  if (hVowels) {
+    for (var i=0; i < hVowels.length; i++) {
+      if (hVowels[i] === gVowels[i])
+        matchingVowels++;
+    }
+    scores.push(matchingVowels / hVowels.length);
   }
 
   var consRegex = /[^aeiou]/g;
@@ -465,22 +473,41 @@ function voice_similarity(heard, guess) {
   var gCons = guess.match(consRegex);
 
   var matchingCons = 0;
-  for (i=0; i < hCons.length; i++) {
-    if (hCons[i] === gCons[i]
-        // TODO generify this:
-          || (hCons[i] === 's' && gCons[i] === 'c')) {
-      matchingCons++;
+  if (hCons) {
+    for (var i=0; i < hCons.length; i++) { // jshint ignore:line
+      if (hCons[i] === gCons[i]
+          // TODO generify this:
+            || (hCons[i] === 's' && gCons[i] === 'c')) {
+        matchingCons++;
+      }
     }
+    scores.push(matchingCons / hCons.length);
   }
 
-  var vowelScore = matchingVowels / hVowels.length;
-  var consScore = matchingCons / hCons.length;
+  var numsRegex = /[0-9]/g;
+  var hNums = heard.match(numsRegex);
+  var gNums = guess.match(numsRegex);
+
+  var matchingNums = 0;
+  if (hNums) {
+    for (var i=0; i < hNums.length; i++) { // jshint ignore:line
+      if (hNums[i] === gNums[i]) {
+        matchingNums++;
+      }
+    }
+    scores.push(matchingNums / hNums.length);
+  }
 
   // NB: if the word we heard is slightly shorter, score higher
   var lenScore = heard.length / guess.length;
+  scores.push(lenScore);
 
   // should we weight vowels higher?
-  return (vowelScore + consScore + lenScore) / 3;
+  // return (vowelScore + consScore + numsScore + lenScore) / 4;
+  var total = scores.reduce(function(sum, next) {
+    return sum + next;
+  }, 0);
+  return total / scores.length;
 }
 
 var VoiceCommand = Fiber.extend(function() {
@@ -516,6 +543,11 @@ var VoiceCommand = Fiber.extend(function() {
       return prop.aircraft.list[0].COMMANDS;
     },
 
+    /**
+     * Split the raw input into parts; parts[0]
+     *  will be the callsign; the rest should
+     *  each be one command
+     */
     _splitParts: function(raw) {
       
       // TODO can we be more heuristic about command aliases?
@@ -557,6 +589,10 @@ var VoiceCommand = Fiber.extend(function() {
       return parts;
     },
 
+    /**
+     * Given the raw callsign as heard, figure out
+     *  what the user meant
+     */
     _parseCallsign: function(raw) {
       // sometimes numbers become words;
       //  let's deconstruct and reconstruct
@@ -574,9 +610,8 @@ var VoiceCommand = Fiber.extend(function() {
 
       var airplaneMatch = raw.match(/(.*?)[ ]([0-9]+)/);
       if (!airplaneMatch) {
-        // possibly an interim match, possibly
-        //  actual just nothing
-        return;
+        // might just be nothing, but...
+        return this._parseCallsignByNumber(raw);
       }
 
       var airline = airplaneMatch[1];
@@ -605,17 +640,20 @@ var VoiceCommand = Fiber.extend(function() {
       var full = (icao + callsign).toUpperCase();
       if (this._findPlane(full)) {
         return full;
-      } else if (icao) {
-        // find planes with this airline
-        return this._parseCallsignByAirline(icao, raw);
       } else {
-        return this._parseCallsignByNumber(callsign, raw);
+        // find planes with this airline
+        return this._parseCallsignByAirline(icao, callsign);
       }
     },
 
-    _parseCallsignByAirline: function(airline, raw) {
+    /**
+     * We didn't find an exact match, but we're pretty
+     *  sure we have an airline
+     */
+    _parseCallsignByAirline: function(airline, callsign) {
       var candidates = prop.aircraft.list.filter(function(craft) {
-        return craft.airline == airline;
+        return craft.airline == airline
+            || prop.airline.airlines[craft.airline].icao == airline;
       });
 
       if (candidates.length == 1) {
@@ -623,15 +661,51 @@ var VoiceCommand = Fiber.extend(function() {
         return candidates[0].getCallsign();
       }
 
-      // FIXME
+      var sorted = voice_sort_similarity_to(candidates, callsign,
+        function(craft) {
+          return craft.callsign;
+        });
+      return sorted[0].getCallsign();
+    },
+
+    /** 
+     * This is the last-ditch attempt; we couldn't
+     *  confidently determine the airline, so we have
+     *  to get a pretty strong match using the number
+     */
+    _parseCallsignByNumber: function(raw) {
+      var rawNumberPart = raw.match(/[0-9]+/g);
+      if (!rawNumberPart) {
+        return;
+      }
+      rawNumberPart = rawNumberPart.join('');
+
+      var candidates = prop.aircraft.list.filter(function(craft) {
+        var candNumberPart = craft.callsign.match(/[0-9]+/)[0];
+        return ~rawNumberPart.indexOf(candNumberPart);
+      });
+
+      if (candidates.length == 1) {
+        // easy peasy
+        return candidates[0].getCallsign();
+      }
+
+      // use similarity?
+      var sorted = voice_sort_similarity_to(candidates, rawNumberPart,
+        function(craft) {
+          return craft.callsign.match(/[0-9]+/)[0];
+        });
+
+      // we want to have a similarity cutoff here
+      if (voice_similarity(rawNumberPart, sorted[0]) >= 0.8) {
+        return sorted[0].getCallsign();
+      }
+
+      // nothing :(
       return null;
     },
 
-    _parseCallsignByNumber: function(number, raw) {
-      // FIXME
-      console.warn("CALLSIGN BY NUMBER!");
-    },
-
+    /** Check if a plane exists with this (full) callsign */
     _findPlane: function(callsign) {
       for (var i in prop.aircraft.list) {
         var craft = prop.aircraft.list[i];
@@ -644,11 +718,11 @@ var VoiceCommand = Fiber.extend(function() {
   }
 });
 
-if (module) {
+try {
   module.exports = {
     init_pre: voice_init_pre
   , ready: voice_ready
   , process: voice_process_unsafe
   , similarity: voice_similarity
   }
-}
+} catch (e) {}

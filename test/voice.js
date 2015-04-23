@@ -106,6 +106,14 @@ beforeEach(function() {
   voice.ready();
 });
 
+describe("similarity", function() { // {{{
+  it("of seth vs cessna/speedbird", function() {
+    var cessna = voice.similarity("seth", "cessna");
+    var speedbird = voice.similarity("seth", "speedbird");
+    cessna.should.be.greaterThan(speedbird);
+  });
+}) // }}}
+
 describe("parts", function() { // {{{
   /*
    * We can do more heuristic approaches to esp
@@ -155,6 +163,32 @@ describe("callsign", function() {
   });
 
   handlesRaw("seth 777 charlie whiskey", function(result) {
+    // seth "sounds" more like cessna (which it is);
+    //  also, it's closer in length to cessna
+    //  than the other candidate, "speedbird"
+    result.callsign.should.equal("N777CW");
+  });
+
+  handlesRaw("seth 000 charlie tango", function(result) {
+    // no number match, but the letters do
+    result.callsign.should.equal("N123CT");
+  });
+
+
+  handlesRaw("speedbird 400", function(result) {
+    // airline is clear (this would also work
+    //  for "steve bird") but number isn't exact;
+    //  look for closets match
+    result.callsign.should.equal("BAW404");
+  });
+
+  handlesRaw("69777 charlie whiskey", function(result) {
+    // chrome does this sometimes...
+    result.callsign.should.equal("N777CW");
+  });
+
+  handlesRaw("s10 777 charlie whiskey", function(result) {
+    // and this
     result.callsign.should.equal("N777CW");
   });
 })
