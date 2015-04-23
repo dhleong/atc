@@ -107,8 +107,10 @@ describe("callsign", function() {
   handlesRaw("cessna 321 charlie whiskey", function(result) {
     result.callsign.should.equal("N321CW");
   });
+  handlesRaw("united niner 21", function(result) {
+    result.callsign.should.equal("UAL921");
+  });
 
-  // TODO united niner 21
   // TODO handle mis-recognized using similarity
 })
 

@@ -26,7 +26,8 @@ function voice_init_pre() {
     size: 6,
     seven: 7,
     eight: 8,
-    nine: 9
+    nine: 9,
+    niner: 9
   };
 
   prop.voice.airlineAlias = {
@@ -306,54 +307,6 @@ function voice_process_unsafe(isFinal, raw) {
   return new VoiceCommand(isFinal, raw);
 }
 
-function voice_process_callsign(isFinal, raw) {
-
-  var input = raw;
-
-  // replace aliases
-  $.each(prop.voice.airlineAlias, function(input, output) {
-    raw = raw.replace(new RegExp("^" + input, 'g'), output);
-  });
-  var output = raw;
-
-  var airplaneMatch = raw.match(/(.*?)[ ]([0-9]{1,3})/);
-  if (!airplaneMatch) {
-    // possibly an interim match, possibly
-    //  actual just nothing
-    return;
-  }
-
-  var airline = airplaneMatch[1];
-  var icao = prop.voice.callsigns[airline];
-  var extra = '';
-  if (!icao) {
-    if (isFinal) {
-      // don't notify for interim results
-      ui_log(/* warn= */true, "Unknown callsign " + airline);
-    }
-    return;
-  } else if (icao == 'cessna') {
-    icao = 'N';
-
-    // cessna callsigns include two letters after
-    var parts = raw.replace(/x ray/i, "x-ray")
-                   .replace(/fox trot/i, "foxtrot")
-                   .split(/ /);
-    var letter1 = parts[2];
-    var letter2 = parts[3];
-    if (!(letter1 && letter2)) {
-      // probably an interim result; don't sweat it
-      return;
-    }
-
-    // ex: cessna 510 uniform alpha
-    extra = letter1[0] + letter2[0];
-  }
-
-  var full = icao + airplaneMatch[2] + extra;
-  return full.toUpperCase();
-}
-
 function voice_process_commands(isFinal, raw) {
 
   for (var alias in prop.voice.commandAlias) {
@@ -510,7 +463,7 @@ var VoiceCommand = Fiber.extend(function() {
       this.raw = raw;
 
       this.parts = this._splitParts(raw);
-      this.callsign = voice_process_callsign(isFinal, raw);
+      this.callsign = this._parseCallsign(this.parts[0]);
       this.commands = voice_process_commands(isFinal, raw);
     },
 
@@ -570,6 +523,65 @@ var VoiceCommand = Fiber.extend(function() {
       }
 
       return parts;
+    },
+
+    _parseCallsign: function(raw) {
+      var input = raw;
+      // replace aliases
+      $.each(prop.voice.airlineAlias, function(input, output) {
+        raw = raw.replace(new RegExp("^" + input, 'g'), output);
+      });
+
+      // sometimes numbers become words;
+      //  let's deconstruct and reconstruct
+      var parts = raw.split(/ +/);
+      raw = '';
+      for (var i in parts) {
+        var number = voice_parse_number(parts[i]);
+        if (number && number.length) {
+          raw += number;
+        } else {
+          raw += ' ' + parts[i] + ' ';
+        }
+      }
+      raw = raw.trim();
+
+      var airplaneMatch = raw.match(/(.*?)[ ]([0-9]{1,3})/);
+      if (!airplaneMatch) {
+        // possibly an interim match, possibly
+        //  actual just nothing
+        return;
+      }
+
+      var airline = airplaneMatch[1];
+      var icao = prop.voice.callsigns[airline];
+      var extra = '';
+      if (!icao) {
+        // if (isFinal) {
+        //   // don't notify for interim results
+        //   ui_log(#<{(| warn= |)}>#true, "Unknown callsign " + airline);
+        // }
+        return;
+      } else if (icao == 'cessna') {
+        icao = 'N';
+
+        // cessna callsigns include two letters after
+        parts = raw.replace(/x ray/i, "x-ray")
+                   .replace(/fox trot/i, "foxtrot")
+                   .split(/ +/);
+        var letter1 = parts[2];
+        var letter2 = parts[3];
+        if (!(letter1 && letter2)) {
+          // probably an interim result; don't sweat it
+          return;
+        }
+
+        // ex: cessna 510 uniform alpha
+        extra = letter1[0] + letter2[0];
+      }
+
+      var full = icao + airplaneMatch[2] + extra;
+      return full.toUpperCase();
     }
   }
 });
