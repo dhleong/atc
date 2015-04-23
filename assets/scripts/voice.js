@@ -279,7 +279,7 @@ function voice_process(isFinal, raw) {
     log(e, LOG_WARNING);
   }
 
-  if (!result.isValid() && isFinal) log("???" + raw, LOG_DEBUG);
+  if (!(result && result.isValid()) && isFinal) log("???" + raw, LOG_DEBUG);
   return result;
 }
 
@@ -694,6 +694,9 @@ var VoiceCommand = Fiber.extend(function() {
       if (candidates.length == 1) {
         // easy peasy
         return candidates[0].getCallsign();
+      } else if (!candidates.length) {
+        // bummer :(
+        return null;
       }
 
       // use similarity?
