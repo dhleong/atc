@@ -1,7 +1,7 @@
 #!/usr/bin/env mocha 
 /* jshint indent: false */
 
-// prepare global namespace {{{
+// prepare global namespace {{{//{{{//}}}
 global.LOG_DEBUG = 0;
 global.log = function() {};
 global.ui_log = global.log;
@@ -22,18 +22,35 @@ global.$ = {
 global.window = {
 }
 
+function aircraft(airline, callsign) {
+  return {
+    airline: airline,
+    callsign: callsign,
+    getCallsign: function() {
+      // minor hacks
+      return ((airline == 'cessna' ? 'N' : airline)
+          + callsign).toUpperCase();
+    },
+    COMMANDS: [
+      "land", "takeoff",
+      "turn", "fix", "climb", "altitude",
+      "taxi"
+    ]
+  }
+}
 function readAirline(name) {
   return require("../assets/airlines/" + name + ".json");
 }
 global.prop = {
   aircraft: {
-    list: [{
-        COMMANDS: [
-          "land", "takeoff",
-          "turn", "fix", "climb", "altitude",
-          "taxi"
-        ]
-    }]
+    list: [
+      aircraft("ual", "921"),
+      aircraft("baw", "321"),
+      aircraft("baw", "404"),
+      aircraft("baw", "874"),
+      aircraft("cessna", "777cw"),
+      aircraft("cessna", "123ct"),
+    ]
   },
   airline: { airlines: { } }
 };
@@ -101,17 +118,24 @@ describe("parts", function() { // {{{
 }); // }}}
 
 describe("callsign", function() {
+  // first, some easy ones
   handlesRaw("speedbird 321", function(result) {
     result.callsign.should.equal("BAW321");
   });
-  handlesRaw("cessna 321 charlie whiskey", function(result) {
-    result.callsign.should.equal("N321CW");
+  handlesRaw("cessna 777 charlie whiskey", function(result) {
+    result.callsign.should.equal("N777CW");
   });
   handlesRaw("united niner 21", function(result) {
     result.callsign.should.equal("UAL921");
   });
 
-  // TODO handle mis-recognized using similarity
+  // now, we test intelligent guesses based
+  //  on similarity to actual in-use planes
+  handlesRaw("umpire 455", function(result) {
+    // umpire is closest to `united`; we shouldn't
+    //  even care about the numbers
+    result.callsign.should.equal("UAL921");
+  });
 })
 
 describe("land", function() {

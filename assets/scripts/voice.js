@@ -386,6 +386,27 @@ function voice_parse_number(number) {
   return result;
 }
 
+function voice_parse_airline(raw) {
+  var airline = raw.toLowerCase();
+  var actual = prop.voice.callsigns[airline];
+  if (actual) {
+    // easy like pie
+    return actual;
+  }
+
+  // compare with active callsigns (unique-ified)
+  var activeAirlines = prop.aircraft.list.map(function(craft) {
+    return craft.airline;
+  });
+
+  var sorted = activeAirlines.sort(function(first, second) {
+    // second - first so greater similarity is *first*
+    return voice_similarity(airline, second) - voice_similarity(airline, first);
+  });
+
+  return sorted[0];
+}
+
 function voice_parse_waypoint(raw) {
 
   var capitalized = raw.toUpperCase();
@@ -465,6 +486,11 @@ var VoiceCommand = Fiber.extend(function() {
       this.parts = this._splitParts(raw);
       this.callsign = this._parseCallsign(this.parts[0]);
       this.commands = voice_process_commands(isFinal, raw);
+
+      if (!this.callsign && isFinal) {
+        // don't notify for interim results
+        ui_log(/* warn= */true, "Unknown callsign " + this.parts[0]);
+      }
     },
 
     isValid: function() {
@@ -526,7 +552,7 @@ var VoiceCommand = Fiber.extend(function() {
     },
 
     _parseCallsign: function(raw) {
-      var input = raw;
+      // TODO remove this; we shouldn't need it
       // replace aliases
       $.each(prop.voice.airlineAlias, function(input, output) {
         raw = raw.replace(new RegExp("^" + input, 'g'), output);
@@ -546,7 +572,7 @@ var VoiceCommand = Fiber.extend(function() {
       }
       raw = raw.trim();
 
-      var airplaneMatch = raw.match(/(.*?)[ ]([0-9]{1,3})/);
+      var airplaneMatch = raw.match(/(.*?)[ ]([0-9]+)/);
       if (!airplaneMatch) {
         // possibly an interim match, possibly
         //  actual just nothing
@@ -554,18 +580,14 @@ var VoiceCommand = Fiber.extend(function() {
       }
 
       var airline = airplaneMatch[1];
-      var icao = prop.voice.callsigns[airline];
-      var extra = '';
-      if (!icao) {
-        // if (isFinal) {
-        //   // don't notify for interim results
-        //   ui_log(#<{(| warn= |)}>#true, "Unknown callsign " + airline);
-        // }
-        return;
-      } else if (icao == 'cessna') {
+      var callsign = airplaneMatch[2];
+      var icao = voice_parse_airline(airline);
+      if (icao == 'cessna') {
         icao = 'N';
 
         // cessna callsigns include two letters after
+        // TODO just try all variations if there're more
+        //  than two words after the numbers
         parts = raw.replace(/x ray/i, "x-ray")
                    .replace(/fox trot/i, "foxtrot")
                    .split(/ +/);
@@ -577,11 +599,46 @@ var VoiceCommand = Fiber.extend(function() {
         }
 
         // ex: cessna 510 uniform alpha
-        extra = letter1[0] + letter2[0];
+        callsign += letter1[0] + letter2[0];
       }
 
-      var full = icao + airplaneMatch[2] + extra;
-      return full.toUpperCase();
+      var full = (icao + callsign).toUpperCase();
+      if (this._findPlane(full)) {
+        return full;
+      } else if (icao) {
+        // find planes with this airline
+        return this._parseCallsignByAirline(icao, raw);
+      } else {
+        return this._parseCallsignByNumber(callsign, raw);
+      }
+    },
+
+    _parseCallsignByAirline: function(airline, raw) {
+      var candidates = prop.aircraft.list.filter(function(craft) {
+        return craft.airline == airline;
+      });
+
+      if (candidates.length == 1) {
+        // easy peasy
+        return candidates[0].getCallsign();
+      }
+
+      // FIXME
+      return null;
+    },
+
+    _parseCallsignByNumber: function(number, raw) {
+      // FIXME
+    },
+
+    _findPlane: function(callsign) {
+      for (var i in prop.aircraft.list) {
+        var craft = prop.aircraft.list[i];
+        if (craft.getCallsign() == callsign) {
+          return true;
+        }
+      }
+      return false;
     }
   }
 });
