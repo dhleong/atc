@@ -30,12 +30,6 @@ function voice_init_pre() {
     niner: 9
   };
 
-  prop.voice.airlineAlias = {
-    // is there a better way to do this?
-    "seth": "cessna",
-    "steve b[a-z]+": "speedbird"
-  };
-
   function argIdentity(regex) {
     return {
       regex: regex,
@@ -472,14 +466,21 @@ function voice_similarity(heard, guess) {
 
   var matchingCons = 0;
   for (i=0; i < hCons.length; i++) {
-    if (hCons[i] === gCons[i])
+    if (hCons[i] === gCons[i]
+        // TODO generify this:
+          || (hCons[i] === 's' && gCons[i] === 'c')) {
       matchingCons++;
+    }
   }
 
   var vowelScore = matchingVowels / hVowels.length;
   var consScore = matchingCons / hCons.length;
 
-  return (vowelScore + consScore) / 2; // should we weight vowels higher?
+  // NB: if the word we heard is slightly shorter, score higher
+  var lenScore = heard.length / guess.length;
+
+  // should we weight vowels higher?
+  return (vowelScore + consScore + lenScore) / 3;
 }
 
 var VoiceCommand = Fiber.extend(function() {
@@ -557,12 +558,6 @@ var VoiceCommand = Fiber.extend(function() {
     },
 
     _parseCallsign: function(raw) {
-      // TODO remove this; we shouldn't need it
-      // replace aliases
-      $.each(prop.voice.airlineAlias, function(input, output) {
-        raw = raw.replace(new RegExp("^" + input, 'g'), output);
-      });
-
       // sometimes numbers become words;
       //  let's deconstruct and reconstruct
       var parts = raw.split(/ +/);
@@ -634,6 +629,7 @@ var VoiceCommand = Fiber.extend(function() {
 
     _parseCallsignByNumber: function(number, raw) {
       // FIXME
+      console.warn("CALLSIGN BY NUMBER!");
     },
 
     _findPlane: function(callsign) {
@@ -653,5 +649,6 @@ if (module) {
     init_pre: voice_init_pre
   , ready: voice_ready
   , process: voice_process_unsafe
+  , similarity: voice_similarity
   }
 }

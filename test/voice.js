@@ -52,7 +52,19 @@ global.prop = {
       aircraft("cessna", "123ct"),
     ]
   },
-  airline: { airlines: { } }
+  airline: { airlines: { } },
+  airport: {
+    current: {
+      fixes: {
+        PIGZI: true,
+        HAMML: true,
+        HASTI: true,
+        HILLS: true,
+        LORAH: true,
+        NARCO: true,
+      }
+    }
+  }
 };
 
 ['aal', 'aca', 'awe', 'baw', 'cessna', 'ual'].forEach(function(icao) {
@@ -136,6 +148,15 @@ describe("callsign", function() {
     //  even care about the numbers
     result.callsign.should.equal("UAL921");
   });
+
+  handlesRaw("steve bird 404", function(result) {
+    // pretty close to speedbird
+    result.callsign.should.equal("BAW404");
+  });
+
+  handlesRaw("seth 777 charlie whiskey", function(result) {
+    result.callsign.should.equal("N777CW");
+  });
 })
 
 describe("land", function() {
@@ -146,6 +167,31 @@ describe("land", function() {
         args: "12L"
     });
   });
+});
+
+describe("navigate", function() {
+  handles("navigate to piggsy", function(result) {
+    result.commands.should.contain({
+        command: "fix",
+        args: "PIGZI"
+    });
+  });
+
+  handles("navigate to laura", function(result) {
+    result.commands.should.contain({
+        command: "fix",
+        args: "LORAH"
+    });
+  });
+
+  handles("navigate to ham", function(result) {
+    result.commands.should.contain({
+        command: "fix",
+        args: "HAMML"
+    });
+  });
+
+  // TODO test waypoints
 });
 
 describe("multiple commands", function() { // {{{
