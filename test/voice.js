@@ -225,7 +225,7 @@ describe("navigate", function() {
     });
   });
 
-  // TODO test waypoints
+  // TODO test more waypoints
 });
 
 describe("multiple commands", function() { // {{{

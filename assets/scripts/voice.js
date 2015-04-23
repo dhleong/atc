@@ -619,6 +619,8 @@ var VoiceCommand = Fiber.extend(function() {
       var icao = voice_parse_airline(airline);
       if (icao == 'cessna') {
         icao = 'N';
+        // TODO: this should probably be handled by looking
+        //  at the length and alpha props on the airline
 
         // cessna callsigns include two letters after
         // TODO just try all variations if there're more
