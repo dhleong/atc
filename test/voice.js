@@ -144,7 +144,7 @@ describe("parts", function() { // {{{
   });
 }); // }}}
 
-describe("callsign", function() {
+describe("callsign", function() { // {{{
   // first, some easy ones
   handlesRaw("speedbird 321", function(result) {
     result.callsign.should.equal("BAW321");
@@ -203,7 +203,7 @@ describe("callsign", function() {
     // and this
     result.callsign.should.equal("N542XF");
   });
-})
+}) // }}}
 
 describe("land", function() {
   handles("land runway one-two left", function(result) {
@@ -263,6 +263,13 @@ describe("toCommand()", function() { // {{{
   handles("taxi runway 17, after departure climb and maintain 8000", function(result) {
     result.toCommand().should.equal(
       "BAW321 taxi 17 climb 8"
+    );
+  });
+
+  handles("taxi to", function(result) {
+    // only include COMPLETE commands
+    result.toCommand().should.equal(
+      "BAW321"
     );
   });
 }); // }}}

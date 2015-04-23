@@ -533,8 +533,10 @@ var VoiceCommand = Fiber.extend(function() {
     toCommand: function() {
       var full = this.callsign;
       for (var i in this.commands) {
-        full += ' ' + this.commands[i].command;
-        full += ' ' + this.commands[i].args;
+        if (this.commands[i].args) {
+          full += ' ' + this.commands[i].command;
+          full += ' ' + this.commands[i].args;
+        }
       }
       return full;
     },
