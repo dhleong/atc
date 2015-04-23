@@ -460,7 +460,7 @@ function voice_similarity(heard, guess) {
   var gVowels = guess.match(vowelsRegex);
 
   var matchingVowels = 0;
-  if (hVowels) {
+  if (hVowels && gVowels) {
     for (var i=0; i < hVowels.length; i++) {
       if (hVowels[i] === gVowels[i])
         matchingVowels++;
@@ -473,7 +473,7 @@ function voice_similarity(heard, guess) {
   var gCons = guess.match(consRegex);
 
   var matchingCons = 0;
-  if (hCons) {
+  if (hCons && gCons) {
     for (var i=0; i < hCons.length; i++) { // jshint ignore:line
       if (hCons[i] === gCons[i]
           // TODO generify this:
@@ -489,7 +489,7 @@ function voice_similarity(heard, guess) {
   var gNums = guess.match(numsRegex);
 
   var matchingNums = 0;
-  if (hNums) {
+  if (hNums && gNums) {
     for (var i=0; i < hNums.length; i++) { // jshint ignore:line
       if (hNums[i] === gNums[i]) {
         matchingNums++;
