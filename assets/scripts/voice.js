@@ -468,7 +468,7 @@ function voice_similarity(heard, guess) {
     scores.push(matchingVowels / hVowels.length);
   }
 
-  var consRegex = /[^aeiou]/g;
+  var consRegex = /[^aeiou0-9]/g;
   var hCons = heard.match(consRegex);
   var gCons = guess.match(consRegex);
 
@@ -616,27 +616,29 @@ var VoiceCommand = Fiber.extend(function() {
 
       var airline = airplaneMatch[1];
       var callsign = airplaneMatch[2];
-      var icao = voice_parse_airline(airline);
-      if (icao == 'cessna') {
-        icao = 'N';
-        // TODO: this should probably be handled by looking
-        //  at the length and alpha props on the airline
+      var parsedAirline = voice_parse_airline(airline);
+      var airlineObj = prop.airline.airlines[parsedAirline];
+      var icao = parsedAirline;
+      if (airlineObj && airlineObj.icao) icao = airlineObj.icao;
 
-        // cessna callsigns include two letters after
-        // TODO just try all variations if there're more
-        //  than two words after the numbers
-        parts = raw.replace(/x ray/i, "x-ray")
-                   .replace(/fox trot/i, "foxtrot")
-                   .split(/ +/);
-        var letter1 = parts[2];
-        var letter2 = parts[3];
-        if (!(letter1 && letter2)) {
-          // probably an interim result; don't sweat it
-          return;
+      if (airlineObj && airlineObj.callsign.alpha) {
+        // I guess this is always 2?
+        var requestedAlphas = 2;
+
+        var alphaParts = parts.slice(2);
+        var alphas = alphaParts.map(function(alpha) {
+          return alpha[0];
+        });
+
+        if (alphas.length <= requestedAlphas) {
+          // ex: cessna 510 uniform alpha
+          callsign += alphas.join('');
+        } else {
+          // just try all variations if there're more
+          //  than two words after the numbers
+          callsign += this._parseCallsignAlphas(
+            parsedAirline, requestedAlphas, alphas);
         }
-
-        // ex: cessna 510 uniform alpha
-        callsign += letter1[0] + letter2[0];
       }
 
       var full = (icao + callsign).toUpperCase();
@@ -705,6 +707,30 @@ var VoiceCommand = Fiber.extend(function() {
 
       // nothing :(
       return null;
+    },
+
+    /**
+     * We have more letters than we should; try all
+     *  combinations to see if there's a matching plane
+     */
+    _parseCallsignAlphas: function(airline, requestedAlphas, alphas) {
+      var candidates = prop.aircraft.list.filter(function(craft) {
+        return craft.airline == airline;
+      }).map(function(craft) {
+        return craft.callsign.substr(-requestedAlphas);
+      });
+
+      for (var i in alphas) {
+        for (var j in alphas) {
+          var guess = alphas[i] + alphas[j];
+          if (~candidates.indexOf(guess)) {
+            return guess;
+          }
+        }
+      }
+
+      // no exact matches :( hopefully we can match on number
+      return '';
     },
 
     /** Check if a plane exists with this (full) callsign */

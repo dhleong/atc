@@ -50,6 +50,7 @@ global.prop = {
       aircraft("baw", "874"),
       aircraft("cessna", "777cw"),
       aircraft("cessna", "123ct"),
+      aircraft("cessna", "542xf"),
     ]
   },
   airline: { airlines: { } },
@@ -111,6 +112,12 @@ describe("similarity", function() { // {{{
     var cessna = voice.similarity("seth", "cessna");
     var speedbird = voice.similarity("seth", "speedbird");
     cessna.should.be.greaterThan(speedbird);
+  });
+
+  it("of 42xf vs 542xf/123ct", function() {
+    var first = voice.similarity("42xf", "542xf");
+    var second = voice.similarity("42xf", "123ct");
+    first.should.be.greaterThan(second);
   });
 }) // }}}
 
@@ -190,6 +197,11 @@ describe("callsign", function() {
   handlesRaw("s10 777 charlie whiskey", function(result) {
     // and this
     result.callsign.should.equal("N777CW");
+  });
+
+  handlesRaw("seth 42 x ray fox trot", function(result) {
+    // and this
+    result.callsign.should.equal("N542XF");
   });
 })
 
