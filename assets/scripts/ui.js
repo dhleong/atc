@@ -91,9 +91,17 @@ function km(kilometers) {
 function ui_log(message) {
   message = arguments[0];
   var warn = false;
+  var voice = null;
   if(arguments[0] == true) {
     warn = true;
     message = arguments[1];
+  } else if (typeof arguments[0] === 'object') {
+    voice = arguments[0];
+    message = arguments[1];
+
+    if(arguments.length >= 3) {
+      message += ", "+arguments[2];
+    }
   } else if(arguments.length >= 2) {
     message += ", "+arguments[1];
   }
@@ -110,7 +118,7 @@ function ui_log(message) {
     }, 10000);
   }, 3, window, html);
 
-  speech_say(message);
+  speech_say(message, voice);
 
 //  console.log("MESSAGE: " + message);
 }

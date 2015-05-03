@@ -180,6 +180,9 @@ var Aircraft=Fiber.extend(function() {
 
       };
 
+      // TODO rate, pitch
+      this.voice = speech_pick_voice();
+
       this.parse(options);
 
       this.html = $("<li class='strip'></li>");
@@ -207,10 +210,10 @@ var Aircraft=Fiber.extend(function() {
           position += distance + " mile" + s(distance);
           var angle = Math.atan2(this.position[0], this.position[1]);
           position += " " + radio_compass(compass_direction(angle));
-          ui_log(airport_get().radio+" tower, "+this.getRadioCallsign()+" in your airspace "+position+", over");
+          this.speak(airport_get().radio+" tower, "+this.getRadioCallsign()+" in your airspace "+position+", over");
           this.inside_ctr = true;
         } else if(this.category == "departure") {
-          ui_log(airport_get().radio + ', ' + this.getRadioCallsign() + ", request taxi");
+          this.speak(airport_get().radio + ', ' + this.getRadioCallsign() + ", request taxi");
         }
       }
 
@@ -248,6 +251,11 @@ var Aircraft=Fiber.extend(function() {
         callsign = callsign.substr(callsign.length - length);
       }
       return airline_get(this.airline).callsign.name + " " + radio(callsign.toUpperCase()) + heavy;
+    },
+    speak: function() {
+      var message = Array.prototype.slice.apply(arguments);
+      message.unshift({voice: this.voice});
+      ui_log.apply(ui_log, message);
     },
     COMMANDS: [
       "turn",
@@ -389,7 +397,7 @@ var Aircraft=Fiber.extend(function() {
 
       if(response.length >= 1) {
         if(response_end) response_end = ", " + response_end;
-        ui_log(this.getRadioCallsign() + ", " + response.join(", ") + response_end);
+        this.speak(this.getRadioCallsign() + ", " + response.join(", ") + response_end);
       }
 
       this.updateStrip();
@@ -901,7 +909,7 @@ var Aircraft=Fiber.extend(function() {
         } else if(this.altitude >= 300 && this.mode == "landing") {
           this.updateStrip();
           this.cancelLanding();
-          ui_log(this.getRadioCallsign() + " aborting landing, lost ILS");
+          this.speak(this.getRadioCallsign() + " aborting landing, lost ILS");
           if(distance2d(runway.position, this.position) < 10) {
             console.log("aborted landing after ILS lost");
             prop.game.score.abort.landing += 1;
@@ -976,7 +984,7 @@ var Aircraft=Fiber.extend(function() {
         if(runway.getEnd(this.requested.runway) == 1) this.heading += Math.PI;
 
         if(runway.isWaiting(this, this.requested.runway) == 0 && was_taxi == true) {
-          ui_log(this.getRadioCallsign(), "ready for takeoff runway "+radio_runway(this.requested.runway));
+          this.speak(this.getRadioCallsign(), "ready for takeoff runway "+radio_runway(this.requested.runway));
           this.updateStrip();
         }
       }
@@ -1398,13 +1406,13 @@ function aircraft_update() {
     var remove = false;
     var aircraft = prop.aircraft.list[i];
     if(!aircraft_visible(aircraft) && aircraft.category == "departure" && aircraft.inside_ctr) {
-      ui_log(aircraft.getRadioCallsign() + " leaving radar coverage");
+      aircraft.speak(aircraft.getRadioCallsign() + " leaving radar coverage");
       prop.game.score.departure += 1;
       console.log("departing aircraft no longer visible");
       aircraft.inside_ctr = false;
     }
     if(!aircraft_visible(aircraft) && aircraft.category == "arrival" && aircraft.inside_ctr) {
-      ui_log(aircraft.getRadioCallsign() + " leaving radar coverage");
+      aircraft.speak(aircraft.getRadioCallsign() + " leaving radar coverage");
       console.log("arriving aircraft no longer visible. YU FAIL");
       aircraft.inside_ctr = false;
     }
@@ -1414,17 +1422,17 @@ function aircraft_update() {
       position += distance + " mile" + s(distance);
       var angle = Math.atan2(aircraft.position[0], aircraft.position[1]);
       position += " " + radio_compass(compass_direction(angle));
-      ui_log(airport_get().radio+" tower, "+aircraft.getRadioCallsign()+" in your airspace "+position+", over");
+      aircraft.speak(airport_get().radio+" tower, "+aircraft.getRadioCallsign()+" in your airspace "+position+", over");
       aircraft.inside_ctr = true;
     }
     if(aircraft.isStopped() && aircraft.category == "arrival") {
-      ui_log(aircraft.getRadioCallsign() + " switching to ground, good day");
+      aircraft.speak(aircraft.getRadioCallsign() + " switching to ground, good day");
       prop.game.score.arrival += 1;
       console.log("arriving aircraft no longer moving");
       remove = true;
     }
     if(aircraft.hit && aircraft.isLanded()) {
-      ui_log("Lost radar contact with "+aircraft.getCallsign());
+      aircraft.speak("Lost radar contact with "+aircraft.getCallsign());
       console.log("aircraft hit and on the ground");
       remove = true;
     }
