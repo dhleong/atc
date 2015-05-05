@@ -1,0 +1,75 @@
+#JSGF V1.0;
+grammar atc;
+
+/**
+ * Basics
+ */
+<nato> = alpha | bravo | charlie | delta | echo | foxtrot | golf | hotel | india | juliet | kilo | lima | mike | november | oscar | papa | quebec | romeo | sierra | tango | uniform | victor | whiskey | x-ray | yankee | zulu;
+<number> = zero | one | two | three | four | five | six | seven | eight | niner | thousand;
+<direction> = left | right;
+<runway> = (runway <number>+ [<direction>]) {runway};
+
+/**
+ * A plane's Callsign
+ *
+ * @example speedbird one four five two
+ * @example cessna three five niner yankee whiskey 
+ */
+<airline> = (american | air canada | cactus | speed bird | united);
+<airline_callsign> = <airline> <number>+;
+// <cessna_callsign> = "cessna" <number>+ <nato> <nato>;
+// public <callsign> = (<airline_callsign> | <cessna_callsign>) {callsign};
+public <callsign> = <airline_callsign> {callsign};
+
+/*
+ *
+ * Now, commands
+ *
+ */
+
+/**
+ * Taxi to a runway
+ * @example taxi to runway one two left
+ */
+<cmd_taxi> = taxi to* <runway>;
+
+/**
+ * Set an altitude
+ * @example climb and maintain four thousand feet
+ */
+<cmd_altitude> = (climb | ascend | descend) "and maintain"* <number>+ {altitude} "feet"*;
+
+/**
+ * Set a heading
+ * @example turn left heading two seven zero
+ */
+<cmd_heading> = turn <direction>* heading (<number> <number> <number>) {heading};
+
+/**
+ * TODO waypoints?
+ * @example navigate to whibr
+ */
+
+/**
+ * circle
+ */
+<cmd_circle> = (hold | "circle to" the*) <direction> {circle};
+
+/**
+ * Clearances
+ */
+<cmd_takeoff> = (clear | cleared) for takeoff;
+<cmd_land> = (clear | cleared) to land <runway>;
+
+/*
+ *
+ * Finally, the big commands
+ *
+ */
+<inflight> = <cmd_altitude> | <cmd_heading> | <cmd_circle>;
+<departure> = <cmd_taxi> | <cmd_takeoff> | <inflight>;
+<atc_departure> = <departure> ["after departure"* <atc_departure>];
+
+<atc_arrival> = <inflight>* <cmd_land>;
+
+public <atc> = <callsign> (<atc_departure> | <atc_arrival> | <inflight>);
